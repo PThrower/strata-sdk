@@ -11,7 +11,7 @@ import { runVerify } from './verify-cmd'
 import { runScan } from './scan-cmd'
 import { parseArgs, pickFlag } from './args'
 
-const VERSION = '0.1.1'
+const VERSION = '0.1.2'
 
 const HELP = `Strata CLI v${VERSION}
 
@@ -28,9 +28,12 @@ OPTIONS
   -v, --version                      show SDK version
 
 EXAMPLES
-  strata verify @modelcontextprotocol/server-filesystem
+  # via npx (the bare "strata" package name on npm is unrelated — use @strata-ai/sdk)
+  npx @strata-ai/sdk verify @modelcontextprotocol/server-filesystem
+  npx @strata-ai/sdk scan
+
+  # after global install: npm install -g @strata-ai/sdk
   strata verify https://github.com/microsoft/playwright-mcp --fail-on high
-  strata scan
   strata scan ./mcp.json --fail-on high
 
 DOCS

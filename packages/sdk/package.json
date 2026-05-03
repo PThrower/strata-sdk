@@ -1,6 +1,6 @@
 {
   "name": "@strata-ai/sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Zero-dependency SDK for Strata — verify the trust score and capability surface of any MCP server",
   "keywords": [
     "strata",

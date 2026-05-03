@@ -107,18 +107,27 @@ console.log(brief.best_practices, brief.news, brief.integrations)
 
 ## CLI
 
-The package ships a `strata` binary:
+The package ships a `strata` binary. Use via `npx @strata-ai/sdk` (the `strata`
+name on npm is taken by an unrelated package):
 
 ```bash
-npx strata verify @modelcontextprotocol/server-filesystem
-npx strata verify https://github.com/microsoft/playwright-mcp
+npx @strata-ai/sdk verify @modelcontextprotocol/server-filesystem
+npx @strata-ai/sdk verify https://github.com/microsoft/playwright-mcp
 
 # Scan an MCP client config (Claude Desktop / Cursor / Cline)
-npx strata scan
-npx strata scan ./mcp.json --fail-on high
+npx @strata-ai/sdk scan
+npx @strata-ai/sdk scan ./mcp.json --fail-on high
 
 # JSON output (parseable)
-npx strata verify @scope/pkg --json
+npx @strata-ai/sdk verify @scope/pkg --json
+```
+
+For shorter invocations, install globally once:
+
+```bash
+npm install -g @strata-ai/sdk
+strata verify @modelcontextprotocol/server-filesystem
+strata scan
 ```
 
 `strata scan` defaults to:

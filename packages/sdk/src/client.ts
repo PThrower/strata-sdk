@@ -14,7 +14,7 @@ import type { RateLimitInfo } from './types'
 
 const DEFAULT_BASE_URL = 'https://usestrata.dev'
 const DEFAULT_TIMEOUT_MS = 10_000
-const SDK_VERSION = '0.1.1'
+const SDK_VERSION = '0.1.2'
 
 // Module-scope flag so the warning fires at most once per process,
 // regardless of how many Strata instances are constructed.

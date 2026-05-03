@@ -39,8 +39,8 @@ console.log(result.risk_level, result.capability_flags)
 ## CLI
 
 ```bash
-npx strata verify @modelcontextprotocol/server-filesystem
-npx strata scan ~/Library/Application\ Support/Claude/claude_desktop_config.json
+npx @strata-ai/sdk verify @modelcontextprotocol/server-filesystem
+npx @strata-ai/sdk scan ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
 ## Documentation
