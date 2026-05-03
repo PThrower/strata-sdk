@@ -1,0 +1,65 @@
+{
+  "name": "@strata-ai/sdk",
+  "version": "0.1.0",
+  "description": "Zero-dependency SDK for Strata — verify the trust score and capability surface of any MCP server",
+  "keywords": [
+    "strata",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "security",
+    "trust",
+    "supply-chain"
+  ],
+  "license": "MIT",
+  "author": "Strata <support@strata.dev>",
+  "homepage": "https://usestrata.dev/docs/sdk",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PThrower/strata-sdk.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/PThrower/strata-sdk/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "strata": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.1"
+  }
+}

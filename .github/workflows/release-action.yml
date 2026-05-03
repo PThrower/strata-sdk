@@ -1,0 +1,58 @@
+name: Release Action
+
+on:
+  push:
+    tags: ['action-v*']
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build SDK + Action
+        run: |
+          npm run build --workspace @strata-ai/sdk
+          npm run build --workspace @strata-ai/action
+      - name: Verify dist freshness
+        run: |
+          if ! git diff --quiet packages/action/dist/; then
+            echo "::error::dist drifted from source"
+            exit 1
+          fi
+      - name: Compute version + alias tags
+        id: tags
+        run: |
+          ref="${GITHUB_REF#refs/tags/}"  # action-v1.2.3
+          full="${ref#action-}"            # v1.2.3
+          major="$(echo "$full" | cut -d. -f1)"  # v1
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "major=$major" >> "$GITHUB_OUTPUT"
+      - name: Push major-version alias tag
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -f "${{ steps.tags.outputs.major }}"
+          git push origin "${{ steps.tags.outputs.major }}" --force
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: 'Action ${{ steps.tags.outputs.full }}'
+          tag_name: 'action-${{ steps.tags.outputs.full }}'
+          body: |
+            See `packages/action/README.md` for usage.
+
+            **Marketplace listing:** https://github.com/marketplace/actions/strata-mcp-security-check
+
+            ```yaml
+            uses: PThrower/strata-sdk/packages/action@${{ steps.tags.outputs.major }}
+            ```

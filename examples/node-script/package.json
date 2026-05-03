@@ -1,0 +1,16 @@
+{
+  "name": "strata-sdk-example-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx verify.ts"
+  },
+  "dependencies": {
+    "@strata-ai/sdk": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.2"
+  }
+}

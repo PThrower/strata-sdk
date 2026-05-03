@@ -1,0 +1,47 @@
+name: Strata MCP Security Check
+description: Verify MCP servers in your repo against Strata's trust scores. Posts a PR comment with risk levels and capability flags.
+author: Strata
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  strata_api_key:
+    description: Strata API key (sk_…). Optional — falls through to anonymous tier.
+    required: false
+  fail_on:
+    description: 'Severity that fails the check: critical | high | medium'
+    required: false
+    default: critical
+  comment_on_pr:
+    description: Post / update PR comment with the trust report.
+    required: false
+    default: 'true'
+  github_token:
+    description: GITHUB_TOKEN for posting PR comments.
+    required: false
+    default: ${{ github.token }}
+  config_paths:
+    description: Comma-separated globs to scan. Default scans common MCP config locations.
+    required: false
+  base_url:
+    description: Override the Strata API base URL.
+    required: false
+
+outputs:
+  total:
+    description: Total MCP servers scanned.
+  critical:
+    description: Count of servers with critical risk.
+  high:
+    description: Count of servers with high risk.
+  medium:
+    description: Count of servers with medium risk.
+  passed:
+    description: Count of servers with low risk.
+  unverifiable:
+    description: Count of servers that could not be verified.
+
+runs:
+  using: node20
+  main: dist/index.js
