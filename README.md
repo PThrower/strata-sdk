@@ -30,7 +30,7 @@ console.log(result.risk_level, result.capability_flags)
 ## Quick action
 
 ```yaml
-- uses: PThrower/strata-sdk/packages/action@v1
+- uses: PThrower/strata-mcp-check@v1
   with:
     strata_api_key: ${{ secrets.STRATA_API_KEY }}
     fail_on: critical

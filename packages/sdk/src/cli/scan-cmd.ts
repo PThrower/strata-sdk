@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { Strata } from '../index'
-import { defaultConfigPath, scanConfig, type ScannedEntry } from '../config-scanner'
+import { defaultConfigPaths, scanConfig, type ScannedEntry } from '../config-scanner'
 import {
   StrataAuthError,
   StrataNetworkError,
@@ -8,35 +8,13 @@ import {
   StrataValidationError,
 } from '../errors'
 import type { RiskLevel, VerifyResult } from '../types'
-
-const ANSI = {
-  reset: '\x1b[0m',
-  bold: '\x1b[1m',
-  dim: '\x1b[2m',
-  red: '\x1b[38;2;239;68;68m',
-  green: '\x1b[38;2;0;196;114m',
-  yellow: '\x1b[38;2;245;158;11m',
-  orange: '\x1b[38;2;249;115;22m',
-  gray: '\x1b[38;2;160;160;160m',
-}
-
-const useColor = process.stdout.isTTY && process.env.NO_COLOR === undefined
-
-function color(s: string, c: string): string {
-  return useColor ? `${c}${s}${ANSI.reset}` : s
-}
-
-const RISK_EMOJI: Record<RiskLevel, string> = {
-  low: '🟢', medium: '🟡', high: '🟠', critical: '🔴', unknown: '⚪',
-}
-
-const RISK_COLOR: Record<RiskLevel, string> = {
-  low: ANSI.green, medium: ANSI.yellow, high: ANSI.orange, critical: ANSI.red, unknown: ANSI.gray,
-}
-
-const RISK_RANK: Record<RiskLevel, number> = {
-  unknown: -1, low: 0, medium: 1, high: 2, critical: 3,
-}
+import {
+  ANSI,
+  RISK_EMOJI,
+  RISK_COLOR,
+  RISK_RANK,
+  color,
+} from './format'
 
 export interface ScanCmdOptions {
   path?: string | undefined
@@ -47,10 +25,23 @@ export interface ScanCmdOptions {
 }
 
 export async function runScan(opts: ScanCmdOptions): Promise<number> {
-  const path = opts.path ?? defaultConfigPath()
+  let path = opts.path
   if (!path) {
-    process.stderr.write(color('Error: cannot determine default config path on this OS — pass an explicit path\n', ANSI.red))
-    return 2
+    const candidates = defaultConfigPaths()
+    if (candidates.length === 0) {
+      process.stderr.write(color('Error: cannot determine default config path on this OS — pass an explicit path\n', ANSI.red))
+      return 2
+    }
+    path = candidates.find((p) => existsSync(p))
+    if (!path) {
+      process.stderr.write(
+        color(
+          `Error: no config found at any default location (tried ${candidates.length}). Pass an explicit path.\n`,
+          ANSI.red,
+        ),
+      )
+      return 2
+    }
   }
   if (!existsSync(path)) {
     process.stderr.write(color(`Error: config not found at ${path}\n`, ANSI.red))

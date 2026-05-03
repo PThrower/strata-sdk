@@ -71,10 +71,12 @@ export async function verifyAll(
       )
       allResults.push(...data.results)
     } catch (err) {
-      // Fallback for older API: 404 means bulk endpoint doesn't exist.
-      // Drop to per-call verify with concurrency limit of 5.
+      // 404 → older API without bulk endpoint.
+      // 401/403 + no API key → bulk requires auth but caller is anonymous.
+      // Both fall back to per-call /verify which supports the anon tier.
       const status = (err as { statusCode?: number }).statusCode
-      if (status === 404) {
+      const isAuthFallback = (status === 401 || status === 403) && !client.hasApiKey
+      if (status === 404 || isAuthFallback) {
         const results = await mapWithConcurrency(chunk, 5, (id) => verify(client, id))
         allResults.push(...results)
         continue

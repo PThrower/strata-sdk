@@ -31706,8 +31706,8 @@ var StrataError = class _StrataError extends Error {
   }
 };
 var StrataAuthError = class _StrataAuthError extends StrataError {
-  constructor(message = "Invalid or missing API key") {
-    super(message, "auth_error", 401);
+  constructor(message = "Invalid or missing API key", statusCode = 401) {
+    super(message, "auth_error", statusCode);
     this.name = "StrataAuthError";
     Object.setPrototypeOf(this, _StrataAuthError.prototype);
   }
@@ -31743,14 +31743,18 @@ var StrataValidationError = class _StrataValidationError extends StrataError {
 // src/client.ts
 var DEFAULT_BASE_URL = "https://usestrata.dev";
 var DEFAULT_TIMEOUT_MS = 1e4;
-var SDK_VERSION = "0.1.0";
+var SDK_VERSION = "0.1.1";
+var hasWarnedBrowserKey = false;
 var Client = class {
   apiKey;
   baseUrl;
   fetchImpl;
   timeout;
   userAgent;
-  hasWarnedBrowserKey = false;
+  /** Whether this client was constructed with an API key. */
+  get hasApiKey() {
+    return this.apiKey !== null;
+  }
   constructor(opts = {}) {
     this.apiKey = opts.apiKey ?? null;
     this.baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
@@ -31767,10 +31771,10 @@ var Client = class {
     this.warnIfBrowserKeyExposure();
   }
   warnIfBrowserKeyExposure() {
-    if (this.hasWarnedBrowserKey) return;
+    if (hasWarnedBrowserKey) return;
     if (!this.apiKey) return;
     if (typeof globalThis !== "undefined" && typeof globalThis.window !== "undefined") {
-      this.hasWarnedBrowserKey = true;
+      hasWarnedBrowserKey = true;
       console.warn(
         "[Strata] API key detected in browser context. Anyone viewing source can read it. Use Strata.public() for client-side calls and proxy authenticated requests through your server."
       );
@@ -31820,7 +31824,10 @@ var Client = class {
     const rateLimit = parseRateLimit(response.headers);
     if (response.status === 401 || response.status === 403) {
       const body = await safeJson(response);
-      throw new StrataAuthError(extractErrorMessage(body) ?? `Authentication failed (${response.status})`);
+      throw new StrataAuthError(
+        extractErrorMessage(body) ?? `Authentication failed (${response.status})`,
+        response.status
+      );
     }
     if (response.status === 429) {
       const body = await safeJson(response);
@@ -31955,7 +31962,8 @@ async function verifyAll(client, inputs) {
       allResults.push(...data.results);
     } catch (err) {
       const status = err.statusCode;
-      if (status === 404) {
+      const isAuthFallback = (status === 401 || status === 403) && !client.hasApiKey;
+      if (status === 404 || isAuthFallback) {
         const results = await mapWithConcurrency(chunk, 5, (id) => verify(client, id));
         allResults.push(...results);
         continue;
@@ -32172,16 +32180,24 @@ function extractNpxPackage(args) {
   let i = 0;
   while (i < args.length) {
     const a = args[i];
-    if (!a) return null;
+    if (a === void 0) return null;
+    if (a === "") {
+      i++;
+      continue;
+    }
     if (a === "-y" || a === "--yes") {
       i++;
       continue;
     }
     if (a === "-p" || a === "--package") {
+      const v = args[i + 1];
+      if (v !== void 0 && v !== "" && !v.startsWith("-")) return v;
       i += 2;
       continue;
     }
     if (a.startsWith("--package=")) {
+      const v = a.slice("--package=".length);
+      if (v.length > 0) return v;
       i++;
       continue;
     }
@@ -32194,18 +32210,32 @@ function extractNpxPackage(args) {
   return null;
 }
 function defaultConfigPath() {
+  const paths = defaultConfigPaths();
+  return paths[0] ?? null;
+}
+function defaultConfigPaths() {
+  if (typeof process === "undefined" || !process.env) return [];
   const home = process.env.HOME ?? process.env.USERPROFILE;
-  if (!home) return null;
+  if (!home) return [];
   const platform = process.platform;
+  const out = [];
   if (platform === "darwin") {
-    return `${home}/Library/Application Support/Claude/claude_desktop_config.json`;
-  }
-  if (platform === "win32") {
+    out.push(`${home}/Library/Application Support/Claude/claude_desktop_config.json`);
+    out.push(`${home}/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`);
+    out.push(`${home}/.cursor/mcp.json`);
+  } else if (platform === "win32") {
     const appData = process.env.APPDATA;
-    if (!appData) return null;
-    return `${appData}\\Claude\\claude_desktop_config.json`;
+    if (appData) {
+      out.push(`${appData}\\Claude\\claude_desktop_config.json`);
+      out.push(`${appData}\\Cursor\\User\\globalStorage\\saoudrizwan.claude-dev\\settings\\cline_mcp_settings.json`);
+    }
+    out.push(`${home}\\.cursor\\mcp.json`);
+  } else {
+    out.push(`${home}/.config/Claude/claude_desktop_config.json`);
+    out.push(`${home}/.config/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`);
+    out.push(`${home}/.cursor/mcp.json`);
   }
-  return `${home}/.config/Claude/claude_desktop_config.json`;
+  return out;
 }
 
 // src/index.ts
@@ -32281,10 +32311,14 @@ const external_node_path_namespaceObject = __WEBPACK_EXTERNAL_createRequire(impo
 
 
 const MAX_FILES = 5000;
+const MAX_JSON_BYTES = 5 * 1024 * 1024; // 5MB; beyond this is almost certainly hostile or generated
 const SKIP_DIRS = new Set([
     'node_modules', '.git', 'dist', 'build', '.next',
     '.vercel', '.turbo', 'coverage', 'vendor', 'target',
     '.cache', '.parcel-cache', '.svelte-kit',
+    // Editor + Python caches and Next.js export output
+    'out', '.vscode', '.idea', '__pycache__', '.pytest_cache',
+    'tmp', '.tmp',
 ]);
 const DEFAULT_FILE_PATTERNS = [
     (n) => n === 'claude_desktop_config.json',
@@ -32320,6 +32354,10 @@ function findMcpReferences(repoRoot, customGlobs) {
                 truncated = true;
                 return;
             }
+            // Never follow symbolic links — they could escape the repo root and
+            // leak content from outside the checkout into the report.
+            if (entry.isSymbolicLink())
+                continue;
             const name = entry.name;
             if (entry.isDirectory()) {
                 if (SKIP_DIRS.has(name))
@@ -32369,6 +32407,9 @@ function findMcpReferences(repoRoot, customGlobs) {
 }
 function safeReadJson(path) {
     try {
+        const st = (0,external_node_fs_namespaceObject.statSync)(path);
+        if (st.size > MAX_JSON_BYTES)
+            return null;
         const raw = (0,external_node_fs_namespaceObject.readFileSync)(path, 'utf-8');
         return JSON.parse(raw);
     }
@@ -32413,7 +32454,7 @@ function riskRank(level) {
     return RISK_RANK[level] ?? -1;
 }
 function summarize(entries) {
-    let passed = 0, warnings = 0, critical = 0, unverifiable = 0;
+    let passed = 0, high = 0, medium = 0, critical = 0, unverifiable = 0;
     let worst = 'low';
     for (const e of entries) {
         if (!e.result || !e.identifier) {
@@ -32423,8 +32464,10 @@ function summarize(entries) {
         const lvl = e.result.risk_level;
         if (lvl === 'critical')
             critical++;
-        else if (lvl === 'high' || lvl === 'medium')
-            warnings++;
+        else if (lvl === 'high')
+            high++;
+        else if (lvl === 'medium')
+            medium++;
         else if (lvl === 'low')
             passed++;
         else
@@ -32434,7 +32477,12 @@ function summarize(entries) {
     }
     return {
         total: entries.length,
-        passed, warnings, critical, unverifiable,
+        passed,
+        high,
+        medium,
+        warnings: high + medium,
+        critical,
+        unverifiable,
         worst,
     };
 }
@@ -32512,11 +32560,13 @@ async function postOrUpdateComment(args) {
     const owner = ctx.repo.owner;
     const repo = ctx.repo.repo;
     const octokit = github.getOctokit(githubToken);
-    // Find existing marker comment.
-    const { data: comments } = await octokit.rest.issues.listComments({
-        owner, repo, issue_number: issueNumber, per_page: 100,
-    });
-    const existing = comments.find((c) => c.body?.startsWith(MARKER));
+    // Paginate through all comments — long-lived PRs commonly exceed 100, and
+    // a missed lookup would create a duplicate Strata comment on every run.
+    // Restrict to bot-authored comments so a human quoting the marker can't
+    // hijack the update path.
+    const allComments = await octokit.paginate(octokit.rest.issues.listComments, { owner, repo, issue_number: issueNumber, per_page: 100 });
+    const existing = allComments.find((c) => c.body?.startsWith(MARKER) &&
+        (c.user?.type === 'Bot' || c.user?.login === 'github-actions[bot]'));
     if (existing) {
         await octokit.rest.issues.updateComment({
             owner, repo, comment_id: existing.id, body,
@@ -32531,7 +32581,12 @@ async function postOrUpdateComment(args) {
     }
 }
 function escapeMd(s) {
-    return String(s).replace(/[|`<>]/g, (c) => `\\${c}`);
+    // Collapse newlines first so a malicious entry name cannot break the
+    // table layout, then escape pipes/backticks/angle brackets and the
+    // backslash itself so escapes survive intact.
+    return String(s)
+        .replace(/[\r\n]+/g, ' ')
+        .replace(/[|`<>\\]/g, (c) => `\\${c}`);
 }
 
 
@@ -32548,12 +32603,43 @@ const main_RISK_RANK = {
 function main_riskRank(level) {
     return main_RISK_RANK[level] ?? -1;
 }
+const RETRY_ATTEMPTS = 3;
+// Retry transient failures (5xx, network) with exponential backoff.
+// A flaky API should not take down every PR build.
+async function withRetry(fn, attempts = RETRY_ATTEMPTS) {
+    let lastErr;
+    for (let i = 0; i < attempts; i++) {
+        try {
+            return await fn();
+        }
+        catch (err) {
+            lastErr = err;
+            if (i === attempts - 1)
+                throw err;
+            const status = err.statusCode;
+            const retryable = err instanceof StrataNetworkError ||
+                (typeof status === 'number' && status >= 500 && status < 600);
+            if (!retryable)
+                throw err;
+            const backoffMs = 1000 * Math.pow(2, i);
+            core.info(`Strata request failed (attempt ${i + 1}/${attempts}); retrying in ${backoffMs}ms…`);
+            await new Promise((r) => setTimeout(r, backoffMs));
+        }
+    }
+    throw lastErr;
+}
 async function run() {
     try {
         const apiKey = core.getInput('strata_api_key') || undefined;
+        // Register the API key as a secret so it is masked in logs even if the
+        // SDK ever surfaces it in an error message.
+        if (apiKey)
+            core.setSecret(apiKey);
         const failOnRaw = core.getInput('fail_on') || 'critical';
         const commentOnPr = (core.getInput('comment_on_pr') || 'true').toLowerCase() === 'true';
         const githubToken = core.getInput('github_token') || process.env.GITHUB_TOKEN || '';
+        if (githubToken)
+            core.setSecret(githubToken);
         const configPathsInput = core.getInput('config_paths');
         const baseUrl = core.getInput('base_url') || undefined;
         if (failOnRaw !== 'critical' && failOnRaw !== 'high' && failOnRaw !== 'medium') {
@@ -32593,9 +32679,9 @@ async function run() {
             verifiedResults = found.map((e) => ({ ...e, result: null }));
         }
         else {
-            const strata = new Strata({ apiKey, baseUrl, userAgent: 'StrataAction/1.0' });
+            const strata = new Strata({ apiKey, baseUrl, userAgent: 'StrataAction/1.0.1' });
             try {
-                const results = await strata.verifyAll(verifiable.map((e) => e.identifier));
+                const results = await withRetry(() => strata.verifyAll(verifiable.map((e) => e.identifier)));
                 const resultMap = new Map(verifiable.map((e, i) => [e.name + '@' + e.sourcePath, results[i]]));
                 verifiedResults = found.map((e) => ({
                     ...e,
@@ -32657,8 +32743,8 @@ function writeSummary(markdown) {
 function setOutputs(summary) {
     core.setOutput('total', String(summary.total));
     core.setOutput('critical', String(summary.critical));
-    core.setOutput('high', String(summary.warnings)); // includes high+medium for back-compat
-    core.setOutput('medium', '0'); // legacy slot, summary.warnings is the real number
+    core.setOutput('high', String(summary.high));
+    core.setOutput('medium', String(summary.medium));
     core.setOutput('passed', String(summary.passed));
     core.setOutput('unverifiable', String(summary.unverifiable));
 }

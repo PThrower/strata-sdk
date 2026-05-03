@@ -7,6 +7,7 @@ import {
   StrataAuthError,
   StrataNetworkError,
   StrataRateLimitError,
+  type VerifyResult,
 } from '@strata-ai/sdk'
 import { findMcpReferences } from './finder'
 import { buildMarkdown, postOrUpdateComment, summarize } from './reporter'
@@ -21,12 +22,42 @@ function riskRank(level: RiskLevel): number {
   return RISK_RANK[level] ?? -1
 }
 
+const RETRY_ATTEMPTS = 3
+
+// Retry transient failures (5xx, network) with exponential backoff.
+// A flaky API should not take down every PR build.
+async function withRetry<T>(fn: () => Promise<T>, attempts = RETRY_ATTEMPTS): Promise<T> {
+  let lastErr: unknown
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastErr = err
+      if (i === attempts - 1) throw err
+      const status = (err as { statusCode?: number }).statusCode
+      const retryable =
+        err instanceof StrataNetworkError ||
+        (typeof status === 'number' && status >= 500 && status < 600)
+      if (!retryable) throw err
+      const backoffMs = 1000 * Math.pow(2, i)
+      core.info(`Strata request failed (attempt ${i + 1}/${attempts}); retrying in ${backoffMs}ms…`)
+      await new Promise((r) => setTimeout(r, backoffMs))
+    }
+  }
+  throw lastErr
+}
+
 async function run(): Promise<void> {
   try {
     const apiKey = core.getInput('strata_api_key') || undefined
+    // Register the API key as a secret so it is masked in logs even if the
+    // SDK ever surfaces it in an error message.
+    if (apiKey) core.setSecret(apiKey)
+
     const failOnRaw = core.getInput('fail_on') || 'critical'
     const commentOnPr = (core.getInput('comment_on_pr') || 'true').toLowerCase() === 'true'
     const githubToken = core.getInput('github_token') || process.env.GITHUB_TOKEN || ''
+    if (githubToken) core.setSecret(githubToken)
     const configPathsInput = core.getInput('config_paths')
     const baseUrl = core.getInput('base_url') || undefined
 
@@ -75,9 +106,11 @@ async function run(): Promise<void> {
     if (verifiable.length === 0) {
       verifiedResults = found.map((e) => ({ ...e, result: null }))
     } else {
-      const strata = new Strata({ apiKey, baseUrl, userAgent: 'StrataAction/1.0' })
+      const strata = new Strata({ apiKey, baseUrl, userAgent: 'StrataAction/1.0.1' })
       try {
-        const results = await strata.verifyAll(verifiable.map((e) => e.identifier))
+        const results: VerifyResult[] = await withRetry(() =>
+          strata.verifyAll(verifiable.map((e) => e.identifier)),
+        )
         const resultMap = new Map(verifiable.map((e, i) => [e.name + '@' + e.sourcePath, results[i]]))
         verifiedResults = found.map((e) => ({
           ...e,
@@ -142,8 +175,8 @@ function writeSummary(markdown: string): void {
 function setOutputs(summary: ReturnType<typeof summarize>): void {
   core.setOutput('total', String(summary.total))
   core.setOutput('critical', String(summary.critical))
-  core.setOutput('high', String(summary.warnings))  // includes high+medium for back-compat
-  core.setOutput('medium', '0')                     // legacy slot, summary.warnings is the real number
+  core.setOutput('high', String(summary.high))
+  core.setOutput('medium', String(summary.medium))
   core.setOutput('passed', String(summary.passed))
   core.setOutput('unverifiable', String(summary.unverifiable))
 }

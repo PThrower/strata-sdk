@@ -15,8 +15,8 @@ export class StrataError extends Error {
 }
 
 export class StrataAuthError extends StrataError {
-  constructor(message = 'Invalid or missing API key') {
-    super(message, 'auth_error', 401)
+  constructor(message = 'Invalid or missing API key', statusCode = 401) {
+    super(message, 'auth_error', statusCode)
     this.name = 'StrataAuthError'
     Object.setPrototypeOf(this, StrataAuthError.prototype)
   }

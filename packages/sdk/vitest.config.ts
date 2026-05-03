@@ -8,7 +8,8 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html'],
       include: ['src/**/*.ts'],
-      exclude: ['src/cli/**', 'src/index.ts'],
+      // Only re-export plumbing is excluded; the CLI argv parser is now tested.
+      exclude: ['src/cli/verify-cmd.ts', 'src/cli/scan-cmd.ts', 'src/index.ts'],
       thresholds: {
         lines: 80,
         functions: 80,

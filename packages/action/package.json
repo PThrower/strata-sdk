@@ -1,6 +1,6 @@
 {
   "name": "@strata-ai/action",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "GitHub Action for Strata MCP Security Check — finds MCP server references in your repo and verifies each one.",
   "license": "MIT",

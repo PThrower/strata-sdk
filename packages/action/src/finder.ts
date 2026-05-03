@@ -8,11 +8,15 @@ import { scanConfig } from '@strata-ai/sdk'
 import type { FoundEntry } from './types'
 
 const MAX_FILES = 5000
+const MAX_JSON_BYTES = 5 * 1024 * 1024  // 5MB; beyond this is almost certainly hostile or generated
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', 'dist', 'build', '.next',
   '.vercel', '.turbo', 'coverage', 'vendor', 'target',
   '.cache', '.parcel-cache', '.svelte-kit',
+  // Editor + Python caches and Next.js export output
+  'out', '.vscode', '.idea', '__pycache__', '.pytest_cache',
+  'tmp', '.tmp',
 ])
 
 const DEFAULT_FILE_PATTERNS: Array<(filename: string, fullPath: string) => boolean> = [
@@ -48,6 +52,9 @@ export function findMcpReferences(
     }
     for (const entry of dirents) {
       if (filesScanned >= MAX_FILES) { truncated = true; return }
+      // Never follow symbolic links — they could escape the repo root and
+      // leak content from outside the checkout into the report.
+      if (entry.isSymbolicLink()) continue
       const name = entry.name
       if (entry.isDirectory()) {
         if (SKIP_DIRS.has(name)) continue
@@ -97,6 +104,8 @@ export function findMcpReferences(
 
 function safeReadJson(path: string): unknown {
   try {
+    const st = statSync(path)
+    if (st.size > MAX_JSON_BYTES) return null
     const raw = readFileSync(path, 'utf-8')
     return JSON.parse(raw)
   } catch {

@@ -169,46 +169,66 @@ export function scanConfig(parsed: unknown): ScannedEntry[] {
 }
 
 function extractNpxPackage(args: string[]): string | null {
-  // Skip leading flags: -y, --yes, -p, --package
+  // `npx -p <pkg> <bin>` runs <bin> shipped *by* <pkg>; the package we want
+  // to verify is <pkg>, not <bin>. So the value after -p / --package wins
+  // over any later non-flag positional.
   let i = 0
   while (i < args.length) {
     const a = args[i]
-    if (!a) return null
-    if (a === '-y' || a === '--yes') {
-      i++
-      continue
-    }
+    if (a === undefined) return null
+    if (a === '') { i++; continue }   // skip empty arg, do not abort
+    if (a === '-y' || a === '--yes') { i++; continue }
     if (a === '-p' || a === '--package') {
-      // Both forms: `-p <pkg>` or `--package=<pkg>`
+      const v = args[i + 1]
+      if (v !== undefined && v !== '' && !v.startsWith('-')) return v
       i += 2
       continue
     }
     if (a.startsWith('--package=')) {
+      const v = a.slice('--package='.length)
+      if (v.length > 0) return v
       i++
       continue
     }
-    // First non-flag is the package
-    if (a.startsWith('-')) {
-      i++
-      continue
-    }
+    if (a.startsWith('-')) { i++; continue }
     return a
   }
   return null
 }
 
 // Default config paths per OS (for `strata scan` with no explicit path).
+// Guarded against non-Node runtimes (Workers, Deno-with-shim, Vercel Edge)
+// where `process.env` is undefined.
 export function defaultConfigPath(): string | null {
+  const paths = defaultConfigPaths()
+  return paths[0] ?? null
+}
+
+// All known default config paths in priority order. `strata scan` should
+// pick the first one that exists on disk so users running Cursor or Cline
+// without Claude Desktop still get a useful default.
+export function defaultConfigPaths(): string[] {
+  if (typeof process === 'undefined' || !process.env) return []
   const home = process.env.HOME ?? process.env.USERPROFILE
-  if (!home) return null
+  if (!home) return []
   const platform = process.platform
+  const out: string[] = []
+
   if (platform === 'darwin') {
-    return `${home}/Library/Application Support/Claude/claude_desktop_config.json`
-  }
-  if (platform === 'win32') {
+    out.push(`${home}/Library/Application Support/Claude/claude_desktop_config.json`)
+    out.push(`${home}/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`)
+    out.push(`${home}/.cursor/mcp.json`)
+  } else if (platform === 'win32') {
     const appData = process.env.APPDATA
-    if (!appData) return null
-    return `${appData}\\Claude\\claude_desktop_config.json`
+    if (appData) {
+      out.push(`${appData}\\Claude\\claude_desktop_config.json`)
+      out.push(`${appData}\\Cursor\\User\\globalStorage\\saoudrizwan.claude-dev\\settings\\cline_mcp_settings.json`)
+    }
+    out.push(`${home}\\.cursor\\mcp.json`)
+  } else {
+    out.push(`${home}/.config/Claude/claude_desktop_config.json`)
+    out.push(`${home}/.config/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`)
+    out.push(`${home}/.cursor/mcp.json`)
   }
-  return `${home}/.config/Claude/claude_desktop_config.json`
+  return out
 }

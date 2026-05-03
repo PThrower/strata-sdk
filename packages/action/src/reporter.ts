@@ -25,7 +25,7 @@ function riskRank(level: RiskLevel): number {
 }
 
 export function summarize(entries: VerifiedEntry[]): ReportSummary {
-  let passed = 0, warnings = 0, critical = 0, unverifiable = 0
+  let passed = 0, high = 0, medium = 0, critical = 0, unverifiable = 0
   let worst: RiskLevel = 'low'
 
   for (const e of entries) {
@@ -35,7 +35,8 @@ export function summarize(entries: VerifiedEntry[]): ReportSummary {
     }
     const lvl = e.result.risk_level
     if (lvl === 'critical') critical++
-    else if (lvl === 'high' || lvl === 'medium') warnings++
+    else if (lvl === 'high') high++
+    else if (lvl === 'medium') medium++
     else if (lvl === 'low') passed++
     else unverifiable++
 
@@ -44,7 +45,12 @@ export function summarize(entries: VerifiedEntry[]): ReportSummary {
 
   return {
     total: entries.length,
-    passed, warnings, critical, unverifiable,
+    passed,
+    high,
+    medium,
+    warnings: high + medium,
+    critical,
+    unverifiable,
     worst,
   }
 }
@@ -137,11 +143,19 @@ export async function postOrUpdateComment(args: {
 
   const octokit = github.getOctokit(githubToken)
 
-  // Find existing marker comment.
-  const { data: comments } = await octokit.rest.issues.listComments({
-    owner, repo, issue_number: issueNumber, per_page: 100,
-  })
-  const existing = comments.find((c) => c.body?.startsWith(MARKER))
+  // Paginate through all comments — long-lived PRs commonly exceed 100, and
+  // a missed lookup would create a duplicate Strata comment on every run.
+  // Restrict to bot-authored comments so a human quoting the marker can't
+  // hijack the update path.
+  const allComments = await octokit.paginate(
+    octokit.rest.issues.listComments,
+    { owner, repo, issue_number: issueNumber, per_page: 100 },
+  )
+  const existing = allComments.find(
+    (c) =>
+      c.body?.startsWith(MARKER) &&
+      (c.user?.type === 'Bot' || c.user?.login === 'github-actions[bot]'),
+  )
 
   if (existing) {
     await octokit.rest.issues.updateComment({
@@ -157,7 +171,12 @@ export async function postOrUpdateComment(args: {
 }
 
 function escapeMd(s: string): string {
-  return String(s).replace(/[|`<>]/g, (c) => `\\${c}`)
+  // Collapse newlines first so a malicious entry name cannot break the
+  // table layout, then escape pipes/backticks/angle brackets and the
+  // backslash itself so escapes survive intact.
+  return String(s)
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[|`<>\\]/g, (c) => `\\${c}`)
 }
 
 export { MARKER }

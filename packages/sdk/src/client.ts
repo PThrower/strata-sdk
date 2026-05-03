@@ -14,7 +14,11 @@ import type { RateLimitInfo } from './types'
 
 const DEFAULT_BASE_URL = 'https://usestrata.dev'
 const DEFAULT_TIMEOUT_MS = 10_000
-const SDK_VERSION = '0.1.0'
+const SDK_VERSION = '0.1.1'
+
+// Module-scope flag so the warning fires at most once per process,
+// regardless of how many Strata instances are constructed.
+let hasWarnedBrowserKey = false
 
 export interface ClientOptions {
   apiKey?: string
@@ -42,7 +46,11 @@ export class Client {
   private readonly fetchImpl: typeof fetch
   private readonly timeout: number
   private readonly userAgent: string
-  private hasWarnedBrowserKey = false
+
+  /** Whether this client was constructed with an API key. */
+  get hasApiKey(): boolean {
+    return this.apiKey !== null
+  }
 
   constructor(opts: ClientOptions = {}) {
     this.apiKey = opts.apiKey ?? null
@@ -64,10 +72,10 @@ export class Client {
   }
 
   private warnIfBrowserKeyExposure(): void {
-    if (this.hasWarnedBrowserKey) return
+    if (hasWarnedBrowserKey) return
     if (!this.apiKey) return
     if (typeof globalThis !== 'undefined' && typeof (globalThis as { window?: unknown }).window !== 'undefined') {
-      this.hasWarnedBrowserKey = true
+      hasWarnedBrowserKey = true
       // eslint-disable-next-line no-console
       console.warn(
         '[Strata] API key detected in browser context. Anyone viewing source can read it. ' +
@@ -132,7 +140,10 @@ export class Client {
 
     if (response.status === 401 || response.status === 403) {
       const body = await safeJson(response)
-      throw new StrataAuthError(extractErrorMessage(body) ?? `Authentication failed (${response.status})`)
+      throw new StrataAuthError(
+        extractErrorMessage(body) ?? `Authentication failed (${response.status})`,
+        response.status,
+      )
     }
 
     if (response.status === 429) {

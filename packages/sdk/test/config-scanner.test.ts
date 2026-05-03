@@ -46,14 +46,31 @@ describe('classifyEntry', () => {
     expect(r.identifier).toEqual({ npm: '@scope/pkg' })
   })
 
-  it('npx -p pkg cmd → npm identifier (skips -p value)', () => {
+  it('npx -p pkg cmd → npm identifier IS the package, not the binary', () => {
+    // The package supplied via -p / --package is what `npx` resolves; the
+    // following non-flag is the binary inside that package, not a separate
+    // package. Verify against the package name.
     const r = classifyEntry('fs', {
       command: 'npx',
       args: ['-p', '@scope/pkg', 'binary', '--flag'],
     })
-    // The package after -p is skipped; the actual binary becomes the identifier.
-    // For simplicity we accept the first non-flag.
-    expect(r.identifier).toEqual({ npm: 'binary' })
+    expect(r.identifier).toEqual({ npm: '@scope/pkg' })
+  })
+
+  it('npx --package=@scope/pkg bin → identifier is package', () => {
+    const r = classifyEntry('fs', {
+      command: 'npx',
+      args: ['--package=@scope/pkg', 'binary'],
+    })
+    expect(r.identifier).toEqual({ npm: '@scope/pkg' })
+  })
+
+  it('npx --package @scope/pkg bin → identifier is package', () => {
+    const r = classifyEntry('fs', {
+      command: 'npx',
+      args: ['--package', '@scope/pkg', 'binary'],
+    })
+    expect(r.identifier).toEqual({ npm: '@scope/pkg' })
   })
 
   it('strips @latest pin', () => {

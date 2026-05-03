@@ -15,7 +15,10 @@ export interface VerifiedEntry extends FoundEntry {
 export interface ReportSummary {
     total: number;
     passed: number;
+    /** Sum of high + medium for back-compat surfaces. */
     warnings: number;
+    high: number;
+    medium: number;
     critical: number;
     unverifiable: number;
     worst: RiskLevel;

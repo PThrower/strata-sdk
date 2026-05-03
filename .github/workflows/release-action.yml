@@ -51,8 +51,11 @@ jobs:
           body: |
             See `packages/action/README.md` for usage.
 
+            The Marketplace listing is published from
+            [PThrower/strata-mcp-check](https://github.com/PThrower/strata-mcp-check) — sync `dist/index.js` and `action.yml` there before tagging on the Marketplace repo.
+
             **Marketplace listing:** https://github.com/marketplace/actions/strata-mcp-security-check
 
             ```yaml
-            uses: PThrower/strata-sdk/packages/action@${{ steps.tags.outputs.major }}
+            uses: PThrower/strata-mcp-check@${{ steps.tags.outputs.major }}
             ```

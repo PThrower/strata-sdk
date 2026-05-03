@@ -89,7 +89,13 @@ export {
 export { computeRiskLevel, unknownRisk } from './risk'
 export type { RiskAssessment, RiskInput } from './risk'
 export { normalizeInput } from './verify'
-export { scanConfig, classifyEntry, stripVersionPin, defaultConfigPath } from './config-scanner'
+export {
+  scanConfig,
+  classifyEntry,
+  stripVersionPin,
+  defaultConfigPath,
+  defaultConfigPaths,
+} from './config-scanner'
 export type { ScannedEntry, McpServerConfig, McpClientConfig } from './config-scanner'
 export type {
   CapabilityFlag,

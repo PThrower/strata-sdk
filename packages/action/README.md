@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: PThrower/strata-sdk/packages/action@v1
+      - uses: PThrower/strata-mcp-check@v1
         with:
           strata_api_key: ${{ secrets.STRATA_API_KEY }}
           fail_on: critical
@@ -43,7 +43,8 @@ That's it. The action will:
 |---|---|
 | `total` | Total MCP servers scanned |
 | `critical` | Count of servers with critical risk |
-| `high` | Count of servers with high or medium risk (warnings) |
+| `high` | Count of servers with high risk |
+| `medium` | Count of servers with medium risk |
 | `passed` | Count of servers with low risk |
 | `unverifiable` | Count that could not be verified (local scripts, etc.) |
 
@@ -85,7 +86,7 @@ For workflows triggered from forks, use `pull_request_target` carefully — see 
 ## Custom scan paths
 
 ```yaml
-- uses: PThrower/strata-sdk/packages/action@v1
+- uses: PThrower/strata-mcp-check@v1
   with:
     config_paths: 'configs/**/*.json,scripts/mcp/*.json'
 ```

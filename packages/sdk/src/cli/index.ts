@@ -2,15 +2,16 @@
 // Strata CLI entry point. Tiny argv parser, no dep on commander/yargs.
 //
 // Subcommands:
-//   strata verify <url|npm|endpoint>   [--json] [--api-key <key>]
-//   strata scan [path]                 [--json] [--fail-on critical|high|medium] [--api-key <key>]
+//   strata verify <url|npm|endpoint>   [--json] [--fail-on <level>] [--api-key <key>]
+//   strata scan [path]                 [--json] [--fail-on <level>] [--api-key <key>]
 //   strata --help
 //   strata --version
 
 import { runVerify } from './verify-cmd'
 import { runScan } from './scan-cmd'
+import { parseArgs, pickFlag } from './args'
 
-const VERSION = '0.1.0'
+const VERSION = '0.1.1'
 
 const HELP = `Strata CLI v${VERSION}
 
@@ -20,7 +21,7 @@ USAGE
 
 OPTIONS
   --json                             output JSON (parseable)
-  --fail-on <level>                  scan: exit non-zero on critical|high|medium (default: critical)
+  --fail-on <level>                  exit non-zero on critical|high|medium (default: critical)
   --api-key <key>                    override STRATA_API_KEY env var
   --base-url <url>                   override the API base URL
   -h, --help                         show this help
@@ -28,7 +29,7 @@ OPTIONS
 
 EXAMPLES
   strata verify @modelcontextprotocol/server-filesystem
-  strata verify https://github.com/microsoft/playwright-mcp
+  strata verify https://github.com/microsoft/playwright-mcp --fail-on high
   strata scan
   strata scan ./mcp.json --fail-on high
 
@@ -40,50 +41,6 @@ ENV
   STRATA_BASE_URL                    override the API base URL
 `
 
-interface ParsedArgs {
-  subcommand: string | null
-  positional: string[]
-  flags: Map<string, string | boolean>
-}
-
-function parseArgs(argv: string[]): ParsedArgs {
-  const flags = new Map<string, string | boolean>()
-  const positional: string[] = []
-  let subcommand: string | null = null
-
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]
-    if (arg === undefined) continue
-
-    if (arg === '-h' || arg === '--help') {
-      flags.set('help', true)
-    } else if (arg === '-v' || arg === '--version') {
-      flags.set('version', true)
-    } else if (arg.startsWith('--')) {
-      const eq = arg.indexOf('=')
-      if (eq > 0) {
-        flags.set(arg.slice(2, eq), arg.slice(eq + 1))
-      } else {
-        const next = argv[i + 1]
-        if (next !== undefined && !next.startsWith('-')) {
-          flags.set(arg.slice(2), next)
-          i++
-        } else {
-          flags.set(arg.slice(2), true)
-        }
-      }
-    } else if (arg.startsWith('-') && arg.length > 1) {
-      flags.set(arg.slice(1), true)
-    } else if (subcommand === null) {
-      subcommand = arg
-    } else {
-      positional.push(arg)
-    }
-  }
-
-  return { subcommand, positional, flags }
-}
-
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2))
 
@@ -92,14 +49,24 @@ async function main(): Promise<number> {
     return 0
   }
 
-  if (args.flags.get('help') || args.subcommand === null) {
+  if (args.flags.get('help')) {
     process.stdout.write(HELP)
-    return args.subcommand === null ? 0 : 0
+    return 0
+  }
+  if (args.subcommand === null) {
+    process.stdout.write(HELP)
+    return 1  // no-op invocation is a usage error
   }
 
   const apiKey = pickFlag(args.flags, 'api-key') ?? process.env.STRATA_API_KEY
   const baseUrl = pickFlag(args.flags, 'base-url') ?? process.env.STRATA_BASE_URL
   const json = args.flags.get('json') === true
+  const failOnRaw = pickFlag(args.flags, 'fail-on') ?? 'critical'
+  if (failOnRaw !== 'critical' && failOnRaw !== 'high' && failOnRaw !== 'medium') {
+    process.stderr.write(`Error: --fail-on must be critical|high|medium, got "${failOnRaw}"\n`)
+    return 2
+  }
+  const failOn = failOnRaw
 
   switch (args.subcommand) {
     case 'verify': {
@@ -108,26 +75,16 @@ async function main(): Promise<number> {
         process.stderr.write('Error: strata verify requires a target (url, npm package, or endpoint)\n')
         return 2
       }
-      return runVerify({ target, apiKey, baseUrl, json })
+      return runVerify({ target, apiKey, baseUrl, json, failOn })
     }
     case 'scan': {
       const path = args.positional[0]
-      const failOn = pickFlag(args.flags, 'fail-on') ?? 'critical'
-      if (failOn !== 'critical' && failOn !== 'high' && failOn !== 'medium') {
-        process.stderr.write(`Error: --fail-on must be critical|high|medium, got "${failOn}"\n`)
-        return 2
-      }
       return runScan({ path, apiKey, baseUrl, json, failOn })
     }
     default:
       process.stderr.write(`Error: unknown subcommand "${args.subcommand}"\n\n${HELP}`)
       return 2
   }
-}
-
-function pickFlag(flags: Map<string, string | boolean>, name: string): string | undefined {
-  const v = flags.get(name)
-  return typeof v === 'string' ? v : undefined
 }
 
 main()

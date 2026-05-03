@@ -5,46 +5,15 @@ import {
   StrataRateLimitError,
   StrataValidationError,
 } from '../errors'
-import type { RiskLevel, VerifyResult } from '../types'
-
-const ANSI = {
-  reset: '\x1b[0m',
-  bold: '\x1b[1m',
-  dim: '\x1b[2m',
-  red: '\x1b[38;2;239;68;68m',
-  green: '\x1b[38;2;0;196;114m',
-  yellow: '\x1b[38;2;245;158;11m',
-  orange: '\x1b[38;2;249;115;22m',
-  gray: '\x1b[38;2;160;160;160m',
-}
-
-const RISK_EMOJI: Record<RiskLevel, string> = {
-  low: '🟢',
-  medium: '🟡',
-  high: '🟠',
-  critical: '🔴',
-  unknown: '⚪',
-}
-
-const RISK_COLOR: Record<RiskLevel, string> = {
-  low: ANSI.green,
-  medium: ANSI.yellow,
-  high: ANSI.orange,
-  critical: ANSI.red,
-  unknown: ANSI.gray,
-}
-
-const useColor = process.stdout.isTTY && process.env.NO_COLOR === undefined
-
-function color(s: string, c: string): string {
-  return useColor ? `${c}${s}${ANSI.reset}` : s
-}
+import type { VerifyResult } from '../types'
+import { ANSI, RISK_EMOJI, RISK_COLOR, color, riskRank } from './format'
 
 export interface VerifyCmdOptions {
   target: string
   apiKey?: string | undefined
   baseUrl?: string | undefined
   json?: boolean
+  failOn: 'critical' | 'high' | 'medium'
 }
 
 export async function runVerify(opts: VerifyCmdOptions): Promise<number> {
@@ -59,11 +28,11 @@ export async function runVerify(opts: VerifyCmdOptions): Promise<number> {
 
   if (opts.json) {
     process.stdout.write(JSON.stringify(result, null, 2) + '\n')
-    return result.risk_level === 'critical' ? 1 : 0
+  } else {
+    printResult(opts.target, result)
   }
 
-  printResult(opts.target, result)
-  return result.risk_level === 'critical' ? 1 : 0
+  return riskRank(result.risk_level) >= riskRank(opts.failOn) ? 1 : 0
 }
 
 function printResult(input: string, r: VerifyResult): void {
