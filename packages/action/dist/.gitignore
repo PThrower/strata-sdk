@@ -1,0 +1,4 @@
+# Source maps embed absolute paths — machine-specific, never commit.
+*.map
+sourcemap-register.cjs
+licenses.txt

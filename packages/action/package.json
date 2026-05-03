@@ -7,7 +7,7 @@
   "author": "Strata <support@strata.dev>",
   "type": "module",
   "scripts": {
-    "build": "ncc build src/main.ts -o dist --source-map --license licenses.txt",
+    "build": "ncc build src/main.ts -o dist --license licenses.txt",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
   },

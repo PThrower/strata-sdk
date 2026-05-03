@@ -17,6 +17,10 @@ const RISK_RANK: Record<RiskLevel, number> = {
   unknown: -1, low: 0, medium: 1, high: 2, critical: 3,
 }
 
+function riskRank(level: RiskLevel): number {
+  return RISK_RANK[level] ?? -1
+}
+
 async function run(): Promise<void> {
   try {
     const apiKey = core.getInput('strata_api_key') || undefined
@@ -115,8 +119,8 @@ async function run(): Promise<void> {
     }
 
     // Decide exit code.
-    const threshold = RISK_RANK[failOn]
-    if (RISK_RANK[summary.worst] >= threshold) {
+    const threshold = riskRank(failOn)
+    if (riskRank(summary.worst) >= threshold) {
       const trigger = summary.worst
       core.setFailed(
         `Strata MCP check failed: ${countAtOrAbove(verifiedResults, threshold)} server(s) at "${trigger}" risk or higher (threshold: ${failOn}).`,
@@ -147,7 +151,7 @@ function setOutputs(summary: ReturnType<typeof summarize>): void {
 function countAtOrAbove(entries: VerifiedEntry[], threshold: number): number {
   let n = 0
   for (const e of entries) {
-    if (e.result && RISK_RANK[e.result.risk_level] >= threshold) n++
+    if (e.result && riskRank(e.result.risk_level) >= threshold) n++
   }
   return n
 }

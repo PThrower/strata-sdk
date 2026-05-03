@@ -20,6 +20,10 @@ const RISK_RANK: Record<RiskLevel, number> = {
   unknown: -1, low: 0, medium: 1, high: 2, critical: 3,
 }
 
+function riskRank(level: RiskLevel): number {
+  return RISK_RANK[level] ?? -1
+}
+
 export function summarize(entries: VerifiedEntry[]): ReportSummary {
   let passed = 0, warnings = 0, critical = 0, unverifiable = 0
   let worst: RiskLevel = 'low'
@@ -35,7 +39,7 @@ export function summarize(entries: VerifiedEntry[]): ReportSummary {
     else if (lvl === 'low') passed++
     else unverifiable++
 
-    if (RISK_RANK[lvl] > RISK_RANK[worst]) worst = lvl
+    if (riskRank(lvl) > riskRank(worst)) worst = lvl
   }
 
   return {
@@ -63,8 +67,8 @@ export function buildMarkdown(entries: VerifiedEntry[], summary: ReportSummary):
 
   // Sort: critical first, then high/medium, then low, then unverifiable.
   const sorted = [...entries].sort((a, b) => {
-    const aRank = a.result ? RISK_RANK[a.result.risk_level] : -2
-    const bRank = b.result ? RISK_RANK[b.result.risk_level] : -2
+    const aRank = a.result ? riskRank(a.result.risk_level) : -2
+    const bRank = b.result ? riskRank(b.result.risk_level) : -2
     return bRank - aRank
   })
 

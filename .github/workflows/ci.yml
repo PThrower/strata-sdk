@@ -15,9 +15,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Build SDK first (action typecheck needs its types)
+        run: npm run build --workspace @strata-ai/sdk
       - name: Type-check
         run: npm run typecheck
-      - name: Build
+      - name: Build (remaining packages)
         run: npm run build
       - name: Test
         run: npm test
@@ -38,8 +40,8 @@ jobs:
         run: npm run build --workspace @strata-ai/action
       - name: Verify dist/ is up to date
         run: |
-          if ! git diff --quiet packages/action/dist/; then
-            echo "::error::packages/action/dist/ drifted from source — run 'npm run build --workspace @strata-ai/action' and commit"
-            git diff packages/action/dist/ | head -50
+          if ! git diff --quiet packages/action/dist/index.js; then
+            echo "::error::packages/action/dist/index.js drifted from source — run 'npm run build --workspace @strata-ai/action' and commit"
+            git diff packages/action/dist/index.js | head -20
             exit 1
           fi

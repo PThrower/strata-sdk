@@ -1,4 +1,4 @@
-import './sourcemap-register.cjs';import { createRequire as __WEBPACK_EXTERNAL_createRequire } from "module";
+import { createRequire as __WEBPACK_EXTERNAL_createRequire } from "module";
 /******/ var __webpack_modules__ = ({
 
 /***/ 2470:
@@ -32409,6 +32409,9 @@ const RISK_EMOJI = {
 const RISK_RANK = {
     unknown: -1, low: 0, medium: 1, high: 2, critical: 3,
 };
+function riskRank(level) {
+    return RISK_RANK[level] ?? -1;
+}
 function summarize(entries) {
     let passed = 0, warnings = 0, critical = 0, unverifiable = 0;
     let worst = 'low';
@@ -32426,7 +32429,7 @@ function summarize(entries) {
             passed++;
         else
             unverifiable++;
-        if (RISK_RANK[lvl] > RISK_RANK[worst])
+        if (riskRank(lvl) > riskRank(worst))
             worst = lvl;
     }
     return {
@@ -32450,8 +32453,8 @@ function buildMarkdown(entries, summary) {
     rows.push('|---|---|---|---|---|');
     // Sort: critical first, then high/medium, then low, then unverifiable.
     const sorted = [...entries].sort((a, b) => {
-        const aRank = a.result ? RISK_RANK[a.result.risk_level] : -2;
-        const bRank = b.result ? RISK_RANK[b.result.risk_level] : -2;
+        const aRank = a.result ? riskRank(a.result.risk_level) : -2;
+        const bRank = b.result ? riskRank(b.result.risk_level) : -2;
         return bRank - aRank;
     });
     for (const entry of sorted) {
@@ -32542,6 +32545,9 @@ function escapeMd(s) {
 const main_RISK_RANK = {
     unknown: -1, low: 0, medium: 1, high: 2, critical: 3,
 };
+function main_riskRank(level) {
+    return main_RISK_RANK[level] ?? -1;
+}
 async function run() {
     try {
         const apiKey = core.getInput('strata_api_key') || undefined;
@@ -32630,8 +32636,8 @@ async function run() {
             core.warning('comment_on_pr=true but no github_token available — skipping comment.');
         }
         // Decide exit code.
-        const threshold = main_RISK_RANK[failOn];
-        if (main_RISK_RANK[summary.worst] >= threshold) {
+        const threshold = main_riskRank(failOn);
+        if (main_riskRank(summary.worst) >= threshold) {
             const trigger = summary.worst;
             core.setFailed(`Strata MCP check failed: ${countAtOrAbove(verifiedResults, threshold)} server(s) at "${trigger}" risk or higher (threshold: ${failOn}).`);
         }
@@ -32659,12 +32665,10 @@ function setOutputs(summary) {
 function countAtOrAbove(entries, threshold) {
     let n = 0;
     for (const e of entries) {
-        if (e.result && main_RISK_RANK[e.result.risk_level] >= threshold)
+        if (e.result && main_riskRank(e.result.risk_level) >= threshold)
             n++;
     }
     return n;
 }
 void run();
 
-
-//# sourceMappingURL=index.js.map
