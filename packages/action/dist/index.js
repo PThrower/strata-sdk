@@ -31743,7 +31743,7 @@ var StrataValidationError = class _StrataValidationError extends StrataError {
 // src/client.ts
 var DEFAULT_BASE_URL = "https://usestrata.dev";
 var DEFAULT_TIMEOUT_MS = 1e4;
-var SDK_VERSION = "0.1.1";
+var SDK_VERSION = "0.1.2";
 var hasWarnedBrowserKey = false;
 var Client = class {
   apiKey;
