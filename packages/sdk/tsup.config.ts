@@ -13,6 +13,10 @@ export default defineConfig({
   treeshake: true,
   target: 'node18',
   outDir: 'dist',
-  banner: ({ format }) =>
-    format === 'esm' ? { js: '' } : { js: '' },
+  banner: ({ format, entry }) => {
+    if (entry && String(entry).includes('cli')) {
+      return { js: '#!/usr/bin/env node' }
+    }
+    return {}
+  },
 })
