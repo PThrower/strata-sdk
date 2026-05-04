@@ -135,6 +135,8 @@ strata scan
 - Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
+`--fail-on <level>` cascades upward: `--fail-on high` breaches on `high` AND `critical`. Order: `medium` < `high` < `critical` (default).
+
 Exit codes: 0 ok, 1 if any server breaches `--fail-on`, 2 internal error.
 
 ## Errors
