@@ -110,3 +110,5 @@ export type {
   VerifyInput,
   VerifyResult,
 } from './types'
+export { createStrataGuard } from './middleware'
+export type { McpToolCall, BlockHandler } from './middleware'
